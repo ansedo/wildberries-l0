@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html;charset=UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1, minimum-scale=1, width=device-width">
+
+    <title>Search order by UID</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro&display=swap" rel="stylesheet">
+    <style>
+        * { margin:0;padding:0;outline:none;font-family:'Source Code Pro', monospace; }
+        body { font-size:28px;background:#e3e3e3; }
+
+        .main { margin:20px auto;max-width:420px; }
+
+        .main .stats { text-align:center; }
+        .main .stats .block { display:inline-block;margin-right:20px;width:100px;padding:20px 30px;background:rgba(0,0,0,.1);border-radius:10px; }
+        .main .stats .block:last-child { margin-right:0; }
+        .main .stats .block .value { font-size:32px; }
+        .main .stats .block .text { font-size:20px; }
+        .main .stats .last-orders { display:inline-block;width:280px;margin-top:20px;padding:20px 30px;background:rgba(0,0,0,.1);border-radius:10px; }
+        .main .stats .last-orders .text { font-size:20px; }
+        .main .stats .last-orders .values { margin-top:10px;height:160px;font-size:22px;overflow:hidden; }
+        .main .stats .last-orders .values .list { margin-top:0; }
+        .main .stats .last-orders .values .list > div { margin-top:3px; }
+        .main .stats .last-orders .values .list > div:hover { color:#666;cursor:pointer; }
+
+        .main .input { text-align:center; }
+        .main .input .block { display:inline-block;width:280px;margin-top:20px;padding:20px 30px;background:rgba(0,0,0,.1);border-radius:10px; }
+        .main .input .block .text { font-size:20px; }
+        .main .input .block .form { margin-top:15px; }
+        .main .input .block .form input { font-size:20px;padding:8px 12px;border:0 none;text-align:center;border-radius:8px; }
+        .main .input .block .form button { margin-top:15px;font-size:20px;padding:5px 10px;border:0 none;cursor:pointer;background:#999;color:#fff; }
+        .main .input .block .form button:hover {}
+
+        .main .response { margin-top:20px;font-size:16px; }
+        .main .response .error { text-align:center; }
+    </style>
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
+    <script>
+        $(function() {
+            let order_uid = $('#order_uid');
+            let response_block = $('#response');
+            let last_order_list = $('#last-orders-list');
+
+            function animate_numbers(element, count) {
+                $({numberValue: parseInt(element.text())}).animate({numberValue: parseInt(count)}, {
+                    duration: 100,
+                    easing: "linear",
+                    step: function(val) {
+                        element.html(Math.ceil(val));
+                    }
+                });
+            }
+
+            function show_stats(order_count, item_count) {
+                animate_numbers($("#orders-value"), order_count);
+                animate_numbers($("#items-value"), item_count);
+            }
+
+            function show_last_order_uids(last_order_uids) {
+                last_order_list.children().not('div:first').remove();
+                $.each(last_order_uids, function(idx, uid) {
+                    last_order_list.append('<div>'+uid+'</div>');
+                });
+                last_order_list.animate({
+                    marginTop: parseInt(last_order_list.css('margin-top'))-31
+                }, 500, function() {
+                    last_order_list.css('margin-top', 0);
+                    last_order_list.children('div:first').remove();
+                });
+            }
+
+            function get_order() {
+                $.ajax({
+                    method: "POST",
+                    url: "/getOrderByUID",
+                    data: {"order_uid": order_uid.val()}
+                })
+                    .done(function(data) {
+                        response_block.empty();
+                        data = JSON.parse(data);
+                        if(data.error) {
+                            response_block.append("<div class=\"error\">error: "+data.error+"</div>");
+                            return
+                        }
+                        response_block.text(JSON.stringify(data.order, null, '    '));
+                    });
+            }
+
+            function get_stats() {
+                $.ajax({
+                    method: "GET",
+                    url: "/getStats"
+                })
+                    .done(function(data) {
+                        show_stats(data.order_count, data.item_count);
+                        show_last_order_uids(data.last_order_uids);
+                    });
+            }
+
+            order_uid.keydown(function(e) {
+                if(e.keyCode === 13) {
+                    get_order();
+                }
+            });
+            order_uid.click(function(){
+                this.select()
+            })
+
+            last_order_list.on('click', 'div', function(e){
+                order_uid.val(e.currentTarget.innerText);
+                get_order();
+            })
+
+            get_stats();
+            setInterval(get_stats, 1000);
+        });
+    </script>
+</head>
+<body>
+    <div class="main">
+        <div class="stats">
+            <div class="block">
+                <div class="value" id="orders-value">0</div>
+                <div class="text">orders</div>
+            </div><!--
+         --><div class="block">
+            <div class="value" id="items-value">0</div>
+            <div class="text">items</div>
+        </div>
+        </div>
+        <div class="stats">
+            <div class="last-orders">
+                <div class="text">last added order uids</div>
+                <div class="values">
+                    <div class="list" id="last-orders-list"></div>
+                </div>
+            </div>
+        </div>
+        <div class="input">
+            <div class="block">
+                <div class="text">search order by uid</div>
+                <div class="form">
+                    <input id="order_uid" value="">
+                </div>
+            </div>
+        </div>
+        <pre class="response" id="response"></pre>
+    </div>
+</body>
+</html>
